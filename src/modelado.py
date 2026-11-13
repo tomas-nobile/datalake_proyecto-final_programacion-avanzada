@@ -94,10 +94,14 @@ def crear_preprocesador() -> Pipeline:
         ("imputar", SimpleImputer(strategy="constant", fill_value=CATEGORIA_FALTANTE)),
         ("codificar", OneHotEncoder(handle_unknown="ignore")),
     ])
-    columnas = ColumnTransformer([
-        ("num", numerico, FEATURES_NUMERICAS),
-        ("cat", categorico, FEATURES_CATEGORICAS),
-    ])
+    columnas = ColumnTransformer(
+        [
+            ("num", numerico, FEATURES_NUMERICAS),
+            ("cat", categorico, FEATURES_CATEGORICAS),
+        ],
+        # Salida densa: con matrices dispersas el Random Forest tarda varias veces más.
+        sparse_threshold=0,
+    )
     return Pipeline([
         ("coordenadas", ImputadorCoordenadasPorBarrio()),
         ("columnas", columnas),
