@@ -11,6 +11,9 @@ __pycache__/
 data/*.dbf
 data/*.zip
 
+# Artefactos de cada ejecución (logs, predicciones, modelos)
+outputs/
+
 # Bases locales generadas
 *.sqlite
 *.db
