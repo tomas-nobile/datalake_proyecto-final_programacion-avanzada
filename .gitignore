@@ -17,4 +17,6 @@ outputs/
 # Bases locales generadas
 *.sqlite
 *.db
+# Excepción: la Tabla 1 se versiona para que la base sea accesible en la revisión.
+!data/tp_final.sqlite
 .pytest_cache/
