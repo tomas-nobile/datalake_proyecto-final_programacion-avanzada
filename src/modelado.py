@@ -13,7 +13,7 @@ import pandas as pd
 from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.compose import ColumnTransformer
 from sklearn.dummy import DummyClassifier
-from sklearn.ensemble import HistGradientBoostingClassifier, RandomForestClassifier
+from sklearn.ensemble import RandomForestClassifier
 from sklearn.impute import SimpleImputer
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import make_scorer, precision_score
@@ -94,13 +94,10 @@ def crear_preprocesador() -> Pipeline:
         ("imputar", SimpleImputer(strategy="constant", fill_value=CATEGORIA_FALTANTE)),
         ("codificar", OneHotEncoder(handle_unknown="ignore")),
     ])
-    columnas = ColumnTransformer(
-        [
-            ("num", numerico, FEATURES_NUMERICAS),
-            ("cat", categorico, FEATURES_CATEGORICAS),
-        ],
-        sparse_threshold=0,  # salida densa: HistGradientBoosting no acepta matrices dispersas
-    )
+    columnas = ColumnTransformer([
+        ("num", numerico, FEATURES_NUMERICAS),
+        ("cat", categorico, FEATURES_CATEGORICAS),
+    ])
     return Pipeline([
         ("coordenadas", ImputadorCoordenadasPorBarrio()),
         ("columnas", columnas),
@@ -117,7 +114,10 @@ class EspecificacionModelo:
 
 
 def especificaciones_modelos(random_state: int = RANDOM_STATE) -> list[EspecificacionModelo]:
-    """Línea base + tres algoritmos con grillas acotadas (las claves usan el prefijo 'modelo__')."""
+    """Línea base + dos algoritmos vistos en la materia, con grillas acotadas.
+
+    Las claves de las grillas usan el prefijo 'modelo__' (nombre del paso en el Pipeline).
+    """
     return [
         EspecificacionModelo("Dummy", DummyClassifier(strategy="most_frequent")),
         EspecificacionModelo(
@@ -129,11 +129,6 @@ def especificaciones_modelos(random_state: int = RANDOM_STATE) -> list[Especific
             "RandomForest",
             RandomForestClassifier(n_estimators=200, random_state=random_state, n_jobs=1),
             {"modelo__max_depth": [None, 25], "modelo__min_samples_leaf": [1, 3]},
-        ),
-        EspecificacionModelo(
-            "HistGradientBoosting",
-            HistGradientBoostingClassifier(random_state=random_state),
-            {"modelo__learning_rate": [0.05, 0.1], "modelo__max_leaf_nodes": [31, 63]},
         ),
     ]
 
