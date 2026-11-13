@@ -70,7 +70,6 @@ fijas; la imputación, el escalado y la codificación van dentro del `Pipeline` 
 | Dummy (línea base) | 0,167 ± 0,000 | 0,335 | 0,167 |
 | Regresión logística | 0,642 ± 0,002 | 0,634 | 0,633 |
 | **Random Forest** (elegido) | **0,737 ± 0,001** | **0,746** | **0,746** |
-| HistGradientBoosting | 0,716 ± 0,002 | 0,715 | 0,716 |
 
 Las confusiones son casi siempre entre clases vecinas (Económico↔Premium < 4 %). Las variables
 con más peso (importancia por permutación) son latitud, antigüedad y longitud.
@@ -98,6 +97,7 @@ cp .env.example .env            # completar credenciales de MongoDB Atlas
 ```bash
 pytest tests                                            # tests
 python -m scripts.entrenar                              # entrena y evalúa; artefactos en outputs/<run_id>/
+python -m scripts.entrenar --muestra 5000               # prueba rápida con una muestra (~20 s)
 jupyter nbconvert --to notebook --execute --inplace notebooks/02_eda.ipynb   # reejecutar el EDA
 ```
 

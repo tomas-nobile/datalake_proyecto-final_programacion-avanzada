@@ -1,13 +1,15 @@
 """Entrena, compara y evalúa los modelos de segmentación de valor.
 
 Uso (desde la raíz del proyecto):
-    python -m scripts.entrenar
+    python -m scripts.entrenar                  # corrida completa (~3-4 min)
+    python -m scripts.entrenar --muestra 5000   # prueba rápida con 5.000 avisos al azar
 
 Flujo: cargar -> limpiar -> separar train/test -> construir target (cortes de train)
 -> GridSearchCV por modelo (CV estratificada sobre train) -> elegir por F1 macro de CV
 -> evaluar en test -> guardar artefactos en outputs/<run_id>/.
 """
 
+import argparse
 import json
 from datetime import datetime
 
@@ -28,14 +30,34 @@ from src.target import COLUMNA_OBJETIVO, COLUMNA_SPLIT, construir_dataset_modela
 NOMBRE_BASELINE = "Dummy"
 
 
-def main() -> None:
-    run_id = generar_run_id("entrenamiento")
+def parsear_argumentos(argv: list[str] | None = None) -> argparse.Namespace:
+    """Lee los parámetros de la línea de comandos."""
+    parser = argparse.ArgumentParser(
+        description="Entrena, compara y evalúa los modelos de segmentación de valor."
+    )
+    parser.add_argument(
+        "--muestra", type=int, default=None, metavar="N",
+        help="usa solo N avisos (al azar y reproducible) para una prueba rápida",
+    )
+    argumentos = parser.parse_args(argv)
+    if argumentos.muestra is not None and argumentos.muestra <= 0:
+        parser.error("--muestra debe ser un entero positivo")
+    return argumentos
+
+
+def main(muestra: int | None = None) -> None:
+    run_id = generar_run_id("prueba" if muestra else "entrenamiento")
     dir_run = OUTPUTS_DIR / run_id
     logger = crear_logger(dir_run / "ejecucion.log")
     logger.info("Ejecución %s: inicio.", run_id)
 
     # 1. Datos
     df_limpio, registro_limpieza = limpiar_datos(cargar_dbf(RUTA_DBF))
+    if muestra:
+        total = len(df_limpio)
+        df_limpio = df_limpio.sample(min(muestra, total), random_state=RANDOM_STATE)
+        logger.warning("Modo prueba: se usan %d de %d avisos. Los resultados no son los finales.",
+                       len(df_limpio), total)
     df, cortes = construir_dataset_modelado(df_limpio)
     train = df[df[COLUMNA_SPLIT] == "train"]
     test = df[df[COLUMNA_SPLIT] == "test"]
@@ -81,6 +103,7 @@ def main() -> None:
         "run_id": run_id,
         "fecha": datetime.now().isoformat(timespec="seconds"),
         "configuracion": {
+            "muestra": muestra,
             "test_size": TEST_SIZE, "cv_folds": CV_FOLDS, "random_state": RANDOM_STATE,
             "metrica_seleccion": METRICA_SELECCION,
             "features_numericas": FEATURES_NUMERICAS,
@@ -106,4 +129,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     pd.set_option("display.width", 160)
-    main()
+    main(parsear_argumentos().muestra)
