@@ -31,7 +31,12 @@ para sus características.
 │   ├── logger.py          # logging a consola (INFO) y archivo (DEBUG)
 │   ├── carga.py           # lectura del DBF
 │   ├── calidad.py         # diagnóstico: auditoría por columna y outliers IQR
-│   └── limpieza.py        # limpieza de datos inválidos (funciones puras)
+│   ├── limpieza.py        # limpieza de datos inválidos (funciones puras)
+│   ├── target.py          # split train/test y segmento por terciles (cortes de train)
+│   ├── modelado.py        # Pipeline, imputador de coordenadas por barrio, GridSearchCV
+│   └── evaluacion.py      # métricas, matriz de confusión, importancia por permutación
+├── scripts/
+│   └── entrenar.py        # flujo completo con run_id: datos -> modelos -> artefactos
 ├── tests/                 # tests con datos sintéticos (pytest)
 └── outputs/               # logs y artefactos de cada ejecución (no versionado)
 ```
@@ -49,6 +54,25 @@ fijas; la imputación, el escalado y la codificación van dentro del `Pipeline` 
 - **Codificación de barrios** corregida (`NUÃ‘EZ` y `NUÃƒâ€˜EZ` → `NUÑEZ`), comuna 0 completada
   por barrio, coordenadas fuera de CABA (SEPTIEMBRE) a nulo.
 - Resultado: **85.357 de 88.640 avisos (96,3 %)**.
+
+## Modelado
+
+- **Partición:** 80/20 estratificada por deciles de USD/m² (`random_state=42`). Los cortes de los
+  terciles se calculan **solo con train** (2.727 y 3.489 USD/m²) y se aplican al test.
+- **Pipeline:** imputación de coordenadas faltantes con el centroide del barrio (transformer propio,
+  aprendido en train) → `SimpleImputer(add_indicator=True)` + `StandardScaler` en numéricas →
+  `OneHotEncoder(handle_unknown='ignore')` en categóricas → modelo.
+- **Selección:** `GridSearchCV` con `StratifiedKFold(5)` sobre train y F1 macro como criterio;
+  el test se usa solo para la evaluación final.
+
+| Modelo | F1 macro CV | Accuracy test | F1 macro test |
+|---|---|---|---|
+| Dummy (línea base) | 0,167 ± 0,000 | 0,335 | 0,167 |
+| Regresión logística | 0,642 ± 0,002 | 0,634 | 0,633 |
+| **Random Forest** (elegido) | **0,737 ± 0,001** | **0,746** | **0,746** |
+
+Las confusiones son casi siempre entre clases vecinas (Económico↔Premium < 4 %). Las variables
+con más peso (importancia por permutación) son latitud, antigüedad y longitud.
 
 ## Arquitectura de datos
 
@@ -71,7 +95,9 @@ cp .env.example .env            # completar credenciales de MongoDB Atlas
 ## Uso
 
 ```bash
-pytest tests                                            # tests de limpieza
+pytest tests                                            # tests
+python -m scripts.entrenar                              # entrena y evalúa; artefactos en outputs/<run_id>/
+python -m scripts.entrenar --muestra 5000               # prueba rápida con una muestra (~20 s)
 jupyter nbconvert --to notebook --execute --inplace notebooks/02_eda.ipynb   # reejecutar el EDA
 ```
 
