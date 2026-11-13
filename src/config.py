@@ -21,7 +21,7 @@ CV_FOLDS: int = 5
 
 # --- Variable objetivo -----------------------------------------------------
 # Segmentos de valor definidos por terciles de USD/m² (calculados solo con train).
-CLASES: tuple[str, ...] = ("Accesible", "Estándar", "Alta")
+CLASES: tuple[str, ...] = ("Económico", "Medio", "Premium")
 
 # Columnas de precio: se usan para construir la clase y NUNCA como features,
 # porque permitirían reconstruir la respuesta (data leakage).
