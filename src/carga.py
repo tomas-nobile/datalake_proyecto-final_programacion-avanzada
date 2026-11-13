@@ -10,9 +10,17 @@ from pathlib import Path
 import pandas as pd
 from dbfread import DBF
 
-from src.config import ENCODING_DBF
+from src.config import ENCODING_DBF, RAIZ
 
 logger = logging.getLogger(__name__)
+
+
+def _ruta_legible(ruta: Path) -> Path:
+    """Devuelve la ruta relativa a la raíz del proyecto (si está dentro) para no exponer rutas locales."""
+    try:
+        return ruta.resolve().relative_to(RAIZ)
+    except ValueError:
+        return ruta
 
 
 def cargar_dbf(ruta: Path, encoding: str = ENCODING_DBF) -> pd.DataFrame:
@@ -28,9 +36,9 @@ def cargar_dbf(ruta: Path, encoding: str = ENCODING_DBF) -> pd.DataFrame:
     Raises:
         FileNotFoundError: si el archivo no existe (se registra antes de relanzar).
     """
-    logger.info("Carga: inicio. Archivo=%s", ruta)
+    logger.info("Carga: inicio. Archivo=%s", _ruta_legible(ruta))
     if not ruta.exists():
-        logger.error("Carga: no se encontró el archivo %s. Ver README (sección Datos).", ruta)
+        logger.error("Carga: no se encontró el archivo %s. Ver README (sección Datos).", _ruta_legible(ruta))
         raise FileNotFoundError(f"No existe el archivo de datos: {ruta}")
 
     tabla = DBF(ruta, encoding=encoding, ignore_missing_memofile=True)
