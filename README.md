@@ -167,6 +167,16 @@ streamlit run app.py                                    # dashboard de resultado
 jupyter nbconvert --to notebook --execute --inplace notebooks/02_eda.ipynb   # reejecutar el EDA
 ```
 
-## Estado
+## Entregables
 
-🚧 En desarrollo.
+| Requisito de la consigna | Dónde |
+|---|---|
+| Pipeline de scikit-learn (imputación, escalado, codificación) | `src/modelado.py` |
+| Dos o más algoritmos + GridSearchCV | Regresión logística y Random Forest (+ Dummy como línea base) |
+| Accuracy, Precision, Recall, F1 y matriz de confusión | `src/evaluacion.py`, dashboard y `outputs/<run_id>/` |
+| Tabla 1: datos limpios | SQLite `data/tp_final.sqlite`, tabla `propiedades_limpias` |
+| Tabla 2: predicciones y métricas | MongoDB Atlas, colecciones `predicciones` y `metricas` |
+| Tabla 3 (extra): configuración del modelo | MongoDB Atlas, colección `modelos_config` |
+| Script de carga a BD | `scripts/cargar_bd.py` |
+| Visualización | `notebooks/02_eda.ipynb` y dashboard `app.py` (Streamlit) |
+| Presentación (6–8 filminas) | `presentacion/Presentacion_Proyecto_Final.pptx` y `.pdf` (con notas del orador) |
