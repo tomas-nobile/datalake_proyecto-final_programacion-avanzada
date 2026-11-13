@@ -1,0 +1,16 @@
+# Credenciales
+.env
+
+# Entornos y cachés
+.venv/
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+
+# Datos crudos (139 MB, supera el límite de GitHub). Se descargan de BA Data, ver README.
+data/*.dbf
+data/*.zip
+
+# Bases locales generadas
+*.sqlite
+*.db
