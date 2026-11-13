@@ -1,2 +1,23 @@
-pymongo>=4.10
-python-dotenv>=1.0
+# Datos y modelado
+numpy==2.5.4
+pandas==3.1.1
+scikit-learn==1.9.1
+dbfread==2.0.7
+
+# Bases de datos
+pymongo==4.20.0
+python-dotenv==1.2.4
+
+# Visualización
+matplotlib==3.11.2
+seaborn==0.13.2
+plotly==7.1.0
+streamlit==1.67.0
+
+# Notebooks
+ipykernel==7.4.0
+nbconvert==7.17.2
+nbformat==5.11.1
+
+# Tests
+pytest==9.2.0
