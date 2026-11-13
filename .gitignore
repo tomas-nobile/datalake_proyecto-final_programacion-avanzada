@@ -17,3 +17,4 @@ outputs/
 # Bases locales generadas
 *.sqlite
 *.db
+.pytest_cache/
