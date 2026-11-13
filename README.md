@@ -40,6 +40,8 @@ para sus características.
 │   ├── cargar_bd.py       # script de carga: datos limpios -> SQLite (Tabla 1)
 │   └── entrenar.py        # SQLite -> modelos -> artefactos locales y MongoDB (Tablas 2 y 3)
 ├── tests/                 # tests con datos sintéticos (pytest)
+├── app.py                 # dashboard en Streamlit (MongoDB con usuario de solo lectura + SQLite)
+├── presentacion/          # filminas de la defensa (PPTX y PDF)
 └── outputs/               # logs y artefactos de cada ejecución (no versionado)
 ```
 
@@ -129,6 +131,21 @@ DBF ─► limpieza ─► split + segmento ─► SQLite: propiedades_limpias (
 - **MongoDB Atlas:** base `tp_final` en el clúster del proyecto. Se comparte por privado un usuario
   **de solo lectura** (`profesor_ro`); con él se puede usar el dashboard o MongoDB Compass.
 
+## Dashboard
+
+`streamlit run app.py` abre un tablero con cinco pestañas:
+
+- **Resumen:** modelo elegido, F1 y accuracy en test contra la línea base, comparación CV vs test,
+  métricas por clase e importancia de variables.
+- **Matriz de confusión** de cada modelo.
+- **Mapa de predicciones:** aciertos y errores sobre el mapa de CABA y % de aciertos por barrio
+  (pipeline de agregación de MongoDB).
+- **Buscar por zona:** consulta geográfica `$near` sobre el índice `2dsphere` (predicciones a menos
+  de N metros de un punto).
+- **Datos:** distribución del precio por m² por segmento y composición de los barrios (Tabla 1, SQLite).
+
+Lee MongoDB con el usuario de **solo lectura**, por lo que puede usarse con las credenciales de revisión.
+
 ## Instalación
 
 ```bash
@@ -146,6 +163,7 @@ python -m scripts.cargar_bd                             # DBF -> limpieza -> SQL
 python -m scripts.entrenar                              # entrena, evalúa y guarda resultados en Mongo
 python -m scripts.entrenar --muestra 5000               # prueba rápida con una muestra (~20 s)
 python -m scripts.entrenar --sin-mongo                  # sin conexión a Atlas (solo outputs/)
+streamlit run app.py                                    # dashboard de resultados
 jupyter nbconvert --to notebook --execute --inplace notebooks/02_eda.ipynb   # reejecutar el EDA
 ```
 
