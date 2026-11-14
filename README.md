@@ -23,7 +23,7 @@ para sus características.
 ## Estructura del proyecto
 
 ```
-├── data/                  # DBF original (no versionado) y _context/ (Index Zonaprop)
+├── data/                  # DBF original (no versionado), tp_final.sqlite y _context/ (Index Zonaprop)
 ├── notebooks/
 │   └── 02_eda.ipynb       # EDA, hallazgos de calidad y decisiones de limpieza
 ├── src/
@@ -34,10 +34,14 @@ para sus características.
 │   ├── limpieza.py        # limpieza de datos inválidos (funciones puras)
 │   ├── target.py          # split train/test y segmento por terciles (cortes de train)
 │   ├── modelado.py        # Pipeline, imputador de coordenadas por barrio, GridSearchCV
-│   └── evaluacion.py      # métricas, matriz de confusión, importancia por permutación
+│   ├── evaluacion.py      # métricas, matriz de confusión, importancia por permutación
+│   └── persistencia.py    # repositorios SQLite y MongoDB, documentos y comprobaciones
 ├── scripts/
-│   └── entrenar.py        # flujo completo con run_id: datos -> modelos -> artefactos
+│   ├── cargar_bd.py       # script de carga: datos limpios -> SQLite (Tabla 1)
+│   └── entrenar.py        # SQLite -> modelos -> artefactos locales y MongoDB (Tablas 2 y 3)
 ├── tests/                 # tests con datos sintéticos (pytest)
+├── app.py                 # dashboard en Streamlit (MongoDB con usuario de solo lectura + SQLite)
+├── presentacion/          # filminas de la defensa (PPTX y PDF)
 └── outputs/               # logs y artefactos de cada ejecución (no versionado)
 ```
 
@@ -74,14 +78,73 @@ fijas; la imputación, el escalado y la codificación van dentro del `Pipeline` 
 Las confusiones son casi siempre entre clases vecinas (Económico↔Premium < 4 %). Las variables
 con más peso (importancia por permutación) son latitud, antigüedad y longitud.
 
-## Arquitectura de datos
+## Bases de datos
 
-| Base | Tabla / colección | Contenido |
-|---|---|---|
-| SQLite | `propiedades_limpias` | Datos de entrada limpios, clase objetivo y partición train/test |
-| MongoDB Atlas | `predicciones` | Predicción por registro de test, con ubicación GeoJSON (índice `2dsphere`) |
-| MongoDB Atlas | `metricas` | Métricas globales y por clase, matriz de confusión embebida |
-| MongoDB Atlas | `modelos_config` | Algoritmo, hiperparámetros óptimos y cortes de los terciles |
+```
+DBF ─► limpieza ─► split + segmento ─► SQLite: propiedades_limpias (Tabla 1)
+                                              │  scripts/cargar_bd.py
+                                              ▼
+                               Pipeline + GridSearchCV (scripts/entrenar.py)
+                                              │
+              ┌───────────────────────────────┼──────────────────────────────┐
+              ▼                               ▼                              ▼
+   Mongo: modelos_config (Tabla 3) ◄── metricas (Tabla 2) ◄── predicciones (Tabla 2)
+          hiperparámetros, CV,          matriz de confusión     GeoJSON + índice 2dsphere
+          importancias                  embebida                 referencia a modelo_id
+```
+
+| Base | Tabla / colección | Contenido | Documentos / filas |
+|---|---|---|---|
+| SQLite | `propiedades_limpias` | Datos limpios, `SPLIT` (train/test) y `SEGMENTO` | 85.357 |
+| MongoDB Atlas | `modelos_config` | Algoritmo, hiperparámetros óptimos, resultados de CV, cortes, importancias | 1 por modelo y ejecución |
+| MongoDB Atlas | `metricas` | Accuracy, precision, recall, F1 (macro y por clase), matriz de confusión | 1 por modelo y ejecución |
+| MongoDB Atlas | `predicciones` | Segmento real y predicho por propiedad de test, ubicación GeoJSON | 17.072 por modelo y ejecución |
+
+### Decisión de modelado (registro según M5-2)
+
+- **Preguntas de acceso frecuentes:** "leer todos los datos limpios para entrenar", "¿qué métricas y
+  qué matriz de confusión tuvo cada modelo en una ejecución?", "¿dónde acierta y dónde se equivoca
+  el modelo?" (por barrio y por cercanía a un punto).
+- **SQLite para la Tabla 1:** datos tabulares de esquema fijo que se leen completos y se filtran por
+  columnas. Las restricciones `CHECK` hacen que la base rechace valores imposibles (por ejemplo un
+  segmento inexistente o un USD/m² fuera de 500–20.000).
+- **MongoDB para resultados:**
+  - **Embeber** la matriz de confusión y las métricas por clase en `metricas`: se leen y cambian juntas.
+  - **Referenciar** `modelos_config` desde `predicciones` (`modelo_id`): miles de predicciones
+    comparten un mismo modelo; duplicar sus hiperparámetros en cada una no tiene sentido.
+  - **GeoJSON + índice `2dsphere`** en `predicciones`: permite consultas `$near` ("predicciones a menos
+    de 1,5 km del Obelisco"), que SQLite no resuelve sin extensiones.
+- **Transformación aplicada:** las coordenadas se guardan como `{"type": "Point", "coordinates": [lon, lat]}`
+  y los hiperparámetros sin el prefijo `modelo__` del Pipeline.
+- **Comprobaciones después de cada escritura** (`MongoRepositorio.validar_ejecucion`):
+  1. columnas esperadas en los documentos de predicción;
+  2. sin segmentos imposibles (fuera de Económico/Medio/Premium);
+  3. totales reconciliados: cantidad de predicciones = filas de test, y accuracy recalculada con un
+     pipeline de agregación = accuracy guardada en `metricas`.
+- **Frase de cierre:** *elegiríamos MongoDB para los resultados porque las consultas requieren leer
+  cada modelo como una unidad y filtrar por ubicación; no lo elegiríamos para la Tabla 1 si necesitáramos
+  integridad referencial entre tablas o consultas SQL ad hoc sobre los datos de entrada.*
+
+### Acceso para la revisión
+
+- **SQLite:** el archivo `data/tp_final.sqlite` está versionado en el repositorio.
+- **MongoDB Atlas:** base `tp_final` en el clúster del proyecto. Se comparte por privado un usuario
+  **de solo lectura** (`profesor_ro`); con él se puede usar el dashboard o MongoDB Compass.
+
+## Dashboard
+
+`streamlit run app.py` abre un tablero con cinco pestañas:
+
+- **Resumen:** modelo elegido, F1 y accuracy en test contra la línea base, comparación CV vs test,
+  métricas por clase e importancia de variables.
+- **Matriz de confusión** de cada modelo.
+- **Mapa de predicciones:** aciertos y errores sobre el mapa de CABA y % de aciertos por barrio
+  (pipeline de agregación de MongoDB).
+- **Buscar por zona:** consulta geográfica `$near` sobre el índice `2dsphere` (predicciones a menos
+  de N metros de un punto).
+- **Datos:** distribución del precio por m² por segmento y composición de los barrios (Tabla 1, SQLite).
+
+Lee MongoDB con el usuario de **solo lectura**, por lo que puede usarse con las credenciales de revisión.
 
 ## Instalación
 
@@ -96,11 +159,24 @@ cp .env.example .env            # completar credenciales de MongoDB Atlas
 
 ```bash
 pytest tests                                            # tests
-python -m scripts.entrenar                              # entrena y evalúa; artefactos en outputs/<run_id>/
+python -m scripts.cargar_bd                             # DBF -> limpieza -> SQLite (+ índices en Mongo)
+python -m scripts.entrenar                              # entrena, evalúa y guarda resultados en Mongo
 python -m scripts.entrenar --muestra 5000               # prueba rápida con una muestra (~20 s)
+python -m scripts.entrenar --sin-mongo                  # sin conexión a Atlas (solo outputs/)
+streamlit run app.py                                    # dashboard de resultados
 jupyter nbconvert --to notebook --execute --inplace notebooks/02_eda.ipynb   # reejecutar el EDA
 ```
 
-## Estado
+## Entregables
 
-🚧 En desarrollo.
+| Requisito de la consigna | Dónde |
+|---|---|
+| Pipeline de scikit-learn (imputación, escalado, codificación) | `src/modelado.py` |
+| Dos o más algoritmos + GridSearchCV | Regresión logística y Random Forest (+ Dummy como línea base) |
+| Accuracy, Precision, Recall, F1 y matriz de confusión | `src/evaluacion.py`, dashboard y `outputs/<run_id>/` |
+| Tabla 1: datos limpios | SQLite `data/tp_final.sqlite`, tabla `propiedades_limpias` |
+| Tabla 2: predicciones y métricas | MongoDB Atlas, colecciones `predicciones` y `metricas` |
+| Tabla 3 (extra): configuración del modelo | MongoDB Atlas, colección `modelos_config` |
+| Script de carga a BD | `scripts/cargar_bd.py` |
+| Visualización | `notebooks/02_eda.ipynb` y dashboard `app.py` (Streamlit) |
+| Presentación (6–8 filminas) | `presentacion/Presentacion_Proyecto_Final.pptx` y `.pdf` (con notas del orador) |

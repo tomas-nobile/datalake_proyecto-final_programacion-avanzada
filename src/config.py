@@ -12,6 +12,7 @@ DATA_DIR: Path = RAIZ / "data"
 OUTPUTS_DIR: Path = RAIZ / "outputs"
 
 RUTA_DBF: Path = DATA_DIR / "Departamentos_venta_2019.dbf"
+RUTA_SQLITE: Path = DATA_DIR / "tp_final.sqlite"
 ENCODING_DBF: str = "latin-1"
 
 # --- Reproducibilidad ------------------------------------------------------
